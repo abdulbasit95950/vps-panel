@@ -8,7 +8,7 @@ A powerful VPN management panel with Dropbear SSH, Nginx SSL WebSocket Proxy, an
 
 Run this command as root:
 
-wget -q -O /usr/local/bin/menu https://raw.githubusercontent.com/abdulbasit95950/vps-panel/main/menu.sh && chmod +x /usr/local/bin/menu && menu
+<pre><code>wget -q -O /usr/local/bin/menu https://raw.githubusercontent.com/abdulbasit95950/vps-panel/main/menu.sh && chmod +x /usr/local/bin/menu && menu</code></pre>
 
 ---
 
