@@ -1,12 +1,20 @@
+<div align="center">
+
 # 🚀 RareTriccks VPN Panel
 
-A powerful and dynamic VPN management panel with Dropbear SSH, Nginx SSL WebSocket Proxy, and Automated Bandwidth/IP Limit tracking.
+![Ubuntu](https://img.shields.io/badge/OS-Ubuntu%2FDebian-orange?style=for-the-badge&logo=ubuntu)
+![Version](https://img.shields.io/badge/Version-1.0.0-blue?style=for-the-badge)
+![Status](https://img.shields.io/badge/Status-Active-brightgreen?style=for-the-badge)
+
+<p>A powerful, high-performance VPN management panel featuring Dropbear SSH, Nginx SSL, WebSocket Proxying, and Automated Bandwidth Enforcement.</p>
 
 ---
 
-## 📥 Fast 1-Line Installation
+</div>
 
-Run the following command as `root` user on your fresh Ubuntu / Debian VPS:
+### 📥 Quick Installation
+
+Run the following command as `root`:
 
 ```bash
-wget -q -O /usr/local/bin/menu https://raw.githubusercontent.com/abdulbasit95950/vps-panel/main/menu.sh && chmod +x /usr/local/bin/menu && menu
+wget -q -O /usr/local/bin/menu [https://raw.githubusercontent.com/abdulbasit95950/vps-panel/main/menu.sh](https://raw.githubusercontent.com/abdulbasit95950/vps-panel/main/menu.sh) && chmod +x /usr/local/bin/menu && menu
