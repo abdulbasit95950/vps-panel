@@ -14,7 +14,31 @@
 
 ### 📥 Quick Installation
 
-Run the following command as `root`:
+Run the following command as <b>root</b>:
 
-```bash
-wget -q -O /usr/local/bin/menu [https://raw.githubusercontent.com/abdulbasit95950/vps-panel/main/menu.sh](https://raw.githubusercontent.com/abdulbasit95950/vps-panel/main/menu.sh) && chmod +x /usr/local/bin/menu && menu
+<code>wget -q -O /usr/local/bin/menu https://raw.githubusercontent.com/abdulbasit95950/vps-panel/main/menu.sh && chmod +x /usr/local/bin/menu && menu</code>
+
+---
+
+### 🔌 Supported Ports
+
+* **SSH Direct:** 22, 109, 447
+* **SSH WebSocket (HTTP):** 80
+* **SSH WebSocket (SSL):** 443
+* **WS Internal Proxy:** 2082
+
+---
+
+### ✨ Key Features
+
+* 🌐 **Dynamic Domain:** Assign and update domain effortlessly.
+* 🔒 **SSL Certificate:** Auto Let's Encrypt SSL configuration.
+* ⚡ **WebSocket Engine:** Built-in Python proxy service.
+* 👥 **User Manager:** Full account lifecycle & expiration tracking.
+* 🚫 **Auto-Kill System:** Bandwidth & IP overuse protection.
+
+---
+
+<div align="center">
+<sub>Powered by RareTriccks • Managed via menu command</sub>
+</div>
