@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # =======================================================
-# Script Name : RareTriccks VPN Panel (IP Protected)
+# Script Name : RareTriccks VPN Panel (MD5 Hash Protected)
 # =======================================================
 
 RED='\033[0;31m'
@@ -12,11 +12,11 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-# IP Authorization Check Function
+# MD5 Hash IP Authorization Check Function
 check_ip_authorization() {
     echo -e "${CYAN}[INFO] Checking IP Permission...${NC}"
     
-    # Fetch VPS Public IP
+    # Detect VPS Public IP
     MY_IP=$(curl -s https://api.ipify.org || curl -s https://ipv4.icanhazip.com)
     
     if [[ -z "$MY_IP" ]]; then
@@ -24,15 +24,18 @@ check_ip_authorization() {
         exit 1
     fi
 
-    # Download current allowed IPs list from GitHub ips.txt
-    ALLOWED_IPS=$(curl -s https://raw.githubusercontent.com/abdulbasit95950/vps-panel/main/ips.txt)
+    # Convert Server IP to MD5 Hash
+    MY_HASH=$(echo -n "$MY_IP" | md5sum | awk '{print $1}')
 
-    # Check if MY_IP exists in ips.txt
-    if echo "$ALLOWED_IPS" | grep -q "$MY_IP"; then
-        echo -e "${GREEN}[SUCCESS] IP $MY_IP is Approved```{NC}"
+    # Download allowed MD5 Hashes list from GitHub ips.txt
+    ALLOWED_HASHES=$(curl -s https://raw.githubusercontent.com/abdulbasit95950/vps-panel/main/ips.txt)
+
+    # Check if Server Hash exists in ips.txt
+    if echo "$ALLOWED_HASHES" | grep -q "$MY_HASH"; then
+        echo -e "${GREEN}[SUCCESS] IP ($MY_IP) is Approved```{NC}"
     else
         echo -e "${RED}[PERMISSION DENIED] Your IP ($MY_IP) is not authorized to use this panel```{NC}"
-        echo -e "${YELLOW}Please contact admin to add your IP in ips.txt.${NC}"
+        echo -e "${YELLOW}Please contact admin to approve your IP Hash (${MY_HASH}).${NC}"
         exit 1
     fi
 }
@@ -42,7 +45,7 @@ if [[ $EUID -ne 0 ]]; then
    exit 1
 fi
 
-# Step 1: Run IP Protection Check
+# Step 1: MD5 Hash Check
 check_ip_authorization
 
 # Step 2: Install Encrypted Bot Script
