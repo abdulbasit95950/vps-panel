@@ -1,4 +1,20 @@
 #!/bin/bash
+# === IP APPROVAL SYSTEM ===
+AUTHORIZED_IPS_URL="https://raw.githubusercontent.com/Abdulbasit95950/vps-panel/main/authorized_ips.txt"
+SERVER_IP=$(curl -s https://ipinfo.io/ip || curl -s ifconfig.me)
+
+if [[ -n "$SERVER_IP" ]]; then
+    CHECK_IP=$(curl -s "$AUTHORIZED_IPS_URL" | grep -w "$SERVER_IP")
+    if [[ -z "$CHECK_IP" ]]; then
+        echo -e "\033[0;31m[ERROR] Yeh IP ($SERVER_IP) authorized nahi hai!\033[0m"
+        echo -e "\033[1;33mPlease contact developer @Abdulbasit95950 to approve your IP.\033[0m"
+        exit 1
+    fi
+else
+    echo -e "\033[0;31m[ERROR] Server IP detect nahi ho saki!\033[0m"
+    exit 1
+fi
+
 
 # ==============================================================================
 # Script Name   : RareTriccks VPN Panel (Full Telegram Buttons & Admin Control)
