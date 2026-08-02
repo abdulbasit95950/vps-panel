@@ -26,6 +26,25 @@ if [[ $EUID -ne 0 ]]; then
    exit 1
 fi
 
+# Setup global 'menu' command shortcut automatically
+setup_menu_shortcut() {
+    local script_path=""
+    if [[ -f "$0" && "$0" != "bash" && "$0" != "-bash" ]]; then
+        script_path="$(realpath "$0")"
+    else
+        script_path="/usr/local/bin/menu.sh"
+    fi
+    
+    if [[ ! -f "$script_path" ]]; then
+        cp "$0" "$script_path" 2>/dev/null || cp /dev/stdin "$script_path" 2>/dev/null
+    fi
+    
+    chmod +x "$script_path"
+    ln -sf "$script_path" /usr/local/bin/menu
+    ln -sf "$script_path" /usr/bin/menu
+}
+setup_menu_shortcut
+
 get_domain() {
     if [[ -f "$DOMAIN_FILE" ]]; then
         cat "$DOMAIN_FILE" | tr -d '\r\n'
@@ -794,6 +813,8 @@ install_all_components() {
     echo -e "${CYAN}====================================================${NC}"
     echo -e "${YELLOW}   ${PANEL_NAME} - SYSTEM INSTALLATION           ${NC}"
     echo -e "${CYAN}====================================================${NC}"
+
+    setup_menu_shortcut
 
     echo -e "${YELLOW}[STEP 1/7] Domain Input Setup${NC}"
     while true; do
