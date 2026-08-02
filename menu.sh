@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==============================================================================
-# Script Name   : RareTriccks VPN Panel (Full Telegram Buttons & Admin Control)
+# Script Name   : RareTriccks VPN Panel (Super Admin & Fixed Bot Engine)
 # ==============================================================================
 
 RED='\033[0;31m'
@@ -16,6 +16,7 @@ PANEL_NAME="RareTriccks VPN Panel"
 BANNER_FILE="/etc/issue.net"
 DOMAIN_FILE="/etc/raretriccks/domain.conf"
 BOT_CONF="/etc/raretriccks/bot.conf"
+SUPER_ADMIN_FILE="/etc/raretriccks/super_admin.conf"
 ADMIN_IDS_FILE="/etc/raretriccks/admin_ids.conf"
 USER_STATE_DIR="/etc/raretriccks/bot_states"
 
@@ -26,7 +27,6 @@ if [[ $EUID -ne 0 ]]; then
    exit 1
 fi
 
-# Setup global 'menu' command shortcut automatically
 setup_menu_shortcut() {
     local script_path=""
     if [[ -f "$0" && "$0" != "bash" && "$0" != "-bash" ]]; then
@@ -68,13 +68,14 @@ press_any_key() {
 }
 
 # ==============================================================================
-# FULL BUTTON-BASED TELEGRAM BOT ENGINE
+# FULL BUTTON-BASED TELEGRAM BOT ENGINE (SUPER ADMIN SECURED)
 # ==============================================================================
 install_telegram_bot() {
     cat << 'TG_EOF' > /usr/local/bin/tgbot.py
 import os, sys, time, subprocess, re, json, requests
 
 BOT_CONF = "/etc/raretriccks/bot.conf"
+SUPER_ADMIN_FILE = "/etc/raretriccks/super_admin.conf"
 ADMIN_IDS_FILE = "/etc/raretriccks/admin_ids.conf"
 USER_DIR = "/etc/raretriccks/users"
 DOMAIN_FILE = "/etc/raretriccks/domain.conf"
@@ -89,11 +90,27 @@ def get_token():
             return f.read().strip()
     return None
 
+def get_super_admin():
+    if os.path.exists(SUPER_ADMIN_FILE):
+        with open(SUPER_ADMIN_FILE, 'r') as f:
+            return f.read().strip()
+    return ""
+
 def get_admins():
+    admins = []
+    sa = get_super_admin()
+    if sa: admins.append(sa)
     if os.path.exists(ADMIN_IDS_FILE):
         with open(ADMIN_IDS_FILE, 'r') as f:
-            return [line.strip() for line in f if line.strip()]
-    return []
+            for line in f:
+                val = line.strip()
+                if val and val not in admins:
+                    admins.append(val)
+    return admins
+
+def is_super_admin(chat_id):
+    sa = get_super_admin()
+    return str(chat_id) == str(sa)
 
 def get_domain():
     if os.path.exists(DOMAIN_FILE):
@@ -129,15 +146,15 @@ def set_user_state(chat_id, data):
     else:
         with open(path, 'w') as f: json.dump(data, f)
 
-def build_main_keyboard():
-    return {
-        "inline_keyboard": [
-            [{"text": "👤 Account Management", "callback_data": "menu_users"}, {"text": "🌐 Domain & SSL", "callback_data": "menu_domain"}],
-            [{"text": "📊 Live Online Users", "callback_data": "cmd_online"}, {"text": "⚙️ System & Services", "callback_data": "menu_services"}],
-            [{"text": "👮 Manage Admins", "callback_data": "menu_admins"}, {"text": "🔄 Restart All Services", "callback_data": "cmd_fix"}],
-            [{"text": "📋 User List & Usage", "callback_data": "cmd_users_list"}]
-        ]
-    }
+def build_main_keyboard(chat_id):
+    kb = [
+        [{"text": "👤 Account Management", "callback_data": "menu_users"}, {"text": "🌐 Domain & SSL", "callback_data": "menu_domain"}],
+        [{"text": "📊 Live Online Users", "callback_data": "cmd_online"}, {"text": "⚙️ System & Services", "callback_data": "menu_services"}],
+        [{"text": "🔄 Restart All Services", "callback_data": "cmd_fix"}, {"text": "📋 User List & Usage", "callback_data": "cmd_users_list"}]
+    ]
+    if is_super_admin(chat_id):
+        kb.insert(2, [{"text": "👮 Manage Admins (Super Only)", "callback_data": "menu_admins"}])
+    return {"inline_keyboard": kb}
 
 def build_users_keyboard():
     return {
@@ -178,11 +195,12 @@ def build_admins_keyboard():
     }
 
 def send_main_menu(chat_id, text="<b>🤖 RareTriccks VPN Control Panel</b>\nChoose an option below:"):
+    set_user_state(chat_id, {})
     send_api("sendMessage", {
         "chat_id": chat_id,
         "text": text,
         "parse_mode": "HTML",
-        "reply_markup": build_main_keyboard()
+        "reply_markup": build_main_keyboard(chat_id)
     })
 
 def edit_message(chat_id, message_id, text, keyboard=None):
@@ -226,19 +244,25 @@ def get_connected_ips_text():
         return f"Error: {str(e)}"
 
 def handle_callback(chat_id, message_id, data):
-    set_user_state(chat_id, {})
-    
     if data == "menu_main":
-        edit_message(chat_id, message_id, "<b>🤖 RareTriccks VPN Control Panel</b>", build_main_keyboard())
+        set_user_state(chat_id, {})
+        edit_message(chat_id, message_id, "<b>🤖 RareTriccks VPN Control Panel</b>", build_main_keyboard(chat_id))
     elif data == "menu_users":
+        set_user_state(chat_id, {})
         edit_message(chat_id, message_id, "<b>👤 Account Management Menu:</b>", build_users_keyboard())
     elif data == "menu_domain":
+        set_user_state(chat_id, {})
         dom = get_domain()
         edit_message(chat_id, message_id, f"<b>🌐 Domain & SSL Setup:</b>\nCurrent Domain: <code>{dom}</code>", build_domain_keyboard())
     elif data == "menu_services":
+        set_user_state(chat_id, {})
         edit_message(chat_id, message_id, "<b>⚙️ System & Services Control:</b>", build_services_keyboard())
     elif data == "menu_admins":
-        edit_message(chat_id, message_id, "<b>👮 Admin Management Center:</b>", build_admins_keyboard())
+        if not is_super_admin(chat_id):
+            send_api("answerCallbackQuery", {"callback_query_id": message_id, "text": "⛔ Only Super Admin can manage admins!", "show_alert": True})
+            return
+        set_user_state(chat_id, {})
+        edit_message(chat_id, message_id, "<b>👮 Admin Management Center (Super Admin Only):</b>", build_admins_keyboard())
 
     elif data == "act_add_start":
         set_user_state(chat_id, {"step": "add_username"})
@@ -259,15 +283,19 @@ def handle_callback(chat_id, message_id, data):
         set_user_state(chat_id, {"step": "domain_set"})
         edit_message(chat_id, message_id, "🌐 Enter your <b>Domain Name</b> (e.g. sub.mydomain.com):")
     elif data == "act_add_admin":
+        if not is_super_admin(chat_id): return
         set_user_state(chat_id, {"step": "admin_add"})
         edit_message(chat_id, message_id, "➕ Enter <b>Telegram Numeric User ID</b> to Allow:")
     elif data == "act_del_admin":
+        if not is_super_admin(chat_id): return
         set_user_state(chat_id, {"step": "admin_del"})
         edit_message(chat_id, message_id, "➖ Enter <b>Telegram Numeric User ID</b> to Remove:")
 
     elif data == "cmd_online":
-        edit_message(chat_id, message_id, get_connected_ips_text(), build_main_keyboard())
+        set_user_state(chat_id, {})
+        edit_message(chat_id, message_id, get_connected_ips_text(), build_main_keyboard(chat_id))
     elif data == "cmd_status":
+        set_user_state(chat_id, {})
         nginx = subprocess.call(["systemctl", "is-active", "--quiet", "nginx"]) == 0
         db = subprocess.call(["systemctl", "is-active", "--quiet", "dropbear"]) == 0
         ws = subprocess.call(["systemctl", "is-active", "--quiet", "ws-proxy"]) == 0
@@ -281,8 +309,9 @@ def handle_callback(chat_id, message_id, data):
         )
         edit_message(chat_id, message_id, res, build_services_keyboard())
     elif data == "cmd_users_list":
+        set_user_state(chat_id, {})
         if not os.path.exists(USER_DIR):
-            edit_message(chat_id, message_id, "No Users Registered.", build_main_keyboard())
+            edit_message(chat_id, message_id, "No Users Registered.", build_main_keyboard(chat_id))
             return
         out = "📋 <b>REGISTERED ACCOUNTS & USAGE:</b>\n\n"
         for fname in os.listdir(USER_DIR):
@@ -296,9 +325,10 @@ def handle_callback(chat_id, message_id, data):
                         elif l.startswith("USED_MB="): used_m = l.strip().split("=")[1]
                 used_gb = round(float(used_m)/1024.0, 2)
                 out += f"👤 <b>{u}</b> | IP: {ip_l} | Used: {used_gb}GB / {gb_l}GB\n"
-        edit_message(chat_id, message_id, out, build_main_keyboard())
+        edit_message(chat_id, message_id, out, build_main_keyboard(chat_id))
 
     elif data == "act_ssl_run":
+        set_user_state(chat_id, {})
         dom = get_domain()
         if dom == "No Domain Set":
             edit_message(chat_id, message_id, "❌ <b>Error:</b> Please set a Domain first!", build_domain_keyboard())
@@ -313,23 +343,28 @@ def handle_callback(chat_id, message_id, data):
             edit_message(chat_id, message_id, f"❌ <b>SSL Failed!</b> Make sure A-Record points to server IP.", build_domain_keyboard())
 
     elif data.startswith("srv_restart_"):
+        set_user_state(chat_id, {})
         srv = data.replace("srv_restart_", "")
         s_name = "nginx" if srv == "nginx" else ("dropbear" if srv == "dropbear" else ("ws-proxy" if srv == "ws" else "autokill"))
         subprocess.call(["systemctl", "restart", s_name])
         edit_message(chat_id, message_id, f"🔄 Service <b>{s_name}</b> restarted successfully!", build_services_keyboard())
 
     elif data == "act_list_admins":
+        if not is_super_admin(chat_id): return
+        set_user_state(chat_id, {})
+        sa = get_super_admin()
         admins = get_admins()
-        res = "📋 <b>ALLOWED ADMIN TELEGRAM IDs:</b>\n\n" + "\n".join([f"• <code>{i}</code>" for i in admins]) if admins else "No admins configured."
+        res = f"👑 <b>Super Admin:</b> <code>{sa}</code>\n\n📋 <b>Allowed Telegram IDs:</b>\n\n" + "\n".join([f"• <code>{i}</code>" for i in admins])
         edit_message(chat_id, message_id, res, build_admins_keyboard())
 
     elif data == "cmd_fix":
+        set_user_state(chat_id, {})
         edit_message(chat_id, message_id, "🔄 Restarting all system engines...")
         subprocess.call(["systemctl", "restart", "dropbear"])
         subprocess.call(["systemctl", "restart", "ws-proxy"])
         subprocess.call(["systemctl", "restart", "autokill"])
         subprocess.call(["systemctl", "restart", "nginx"])
-        edit_message(chat_id, message_id, "✅ <b>All System Services Refreshed & Active!</b>", build_main_keyboard())
+        edit_message(chat_id, message_id, "✅ <b>All System Services Refreshed & Active!</b>", build_main_keyboard(chat_id))
 
 def handle_text(chat_id, text):
     state = get_user_state(chat_id)
@@ -454,12 +489,14 @@ def handle_text(chat_id, text):
         send_api("sendMessage", {"chat_id": chat_id, "text": f"🌐 Domain successfully set to: <code>{new_dom}</code>", "parse_mode": "HTML", "reply_markup": build_domain_keyboard()})
 
     elif step == "admin_add":
+        if not is_super_admin(chat_id): return
         set_user_state(chat_id, {})
         new_aid = text.strip()
         with open(ADMIN_IDS_FILE, "a") as f: f.write(f"{new_aid}\n")
         send_api("sendMessage", {"chat_id": chat_id, "text": f"👮 Telegram ID <code>{new_aid}</code> authorized!", "parse_mode": "HTML", "reply_markup": build_admins_keyboard()})
 
     elif step == "admin_del":
+        if not is_super_admin(chat_id): return
         set_user_state(chat_id, {})
         rem_aid = text.strip()
         if os.path.exists(ADMIN_IDS_FILE):
@@ -498,7 +535,6 @@ def main():
                         
                         if chat_id in admins:
                             if text == "/start":
-                                set_user_state(chat_id, {})
                                 send_main_menu(chat_id)
                             else:
                                 handle_text(chat_id, text)
@@ -538,6 +574,9 @@ telegram_bot_menu() {
         echo -e "${CYAN}====================================================${NC}"
         
         local bot_status="${RED}[ NOT CONFIGURED ]${NC}"
+        local cur_sa="Not Set"
+        [[ -f "$SUPER_ADMIN_FILE" ]] && cur_sa=$(cat "$SUPER_ADMIN_FILE")
+
         if [[ -f "$BOT_CONF" && -s "$BOT_CONF" ]]; then
             if systemctl is-active --quiet tgbot; then
                 bot_status="${GREEN}[ ACTIVE & RUNNING ]${NC}"
@@ -546,11 +585,12 @@ telegram_bot_menu() {
             fi
         fi
 
-        echo -e " Bot Status : ${bot_status}"
+        echo -e " Bot Status   : ${bot_status}"
+        echo -e " Super Admin ID: ${GREEN}${cur_sa}${NC}"
         echo -e "${CYAN}----------------------------------------------------${NC}"
-        echo -e " 1) Set / Change Bot Token"
-        echo -e " 2) Add Allowed Admin Telegram ID"
-        echo -e " 3) Remove Admin Telegram ID"
+        echo -e " 1) Set / Change Bot Token & Super Admin ID"
+        echo -e " 2) Add Allowed Admin Telegram ID (Super Only)"
+        echo -e " 3) Remove Admin Telegram ID (Super Only)"
         echo -e " 4) View Allowed Telegram Admin IDs"
         echo -e " 5) Restart Bot Service"
         echo -e " 6) Stop Bot Service"
@@ -562,9 +602,15 @@ telegram_bot_menu() {
             1)
                 read -rp "Enter Telegram Bot Token (from @BotFather): " token_input
                 if [[ -n "$token_input" ]]; then
-                    echo "$token_input" > "$BOT_CONF"
-                    install_telegram_bot
-                    echo -e "${GREEN}[SUCCESS] Bot token saved & service restarted!${NC}"
+                    read -rp "Enter Super Admin Telegram Numeric ID: " sa_input
+                    if [[ -n "$sa_input" ]]; then
+                        echo "$token_input" > "$BOT_CONF"
+                        echo "$sa_input" > "$SUPER_ADMIN_FILE"
+                        install_telegram_bot
+                        echo -e "${GREEN}[SUCCESS] Token & Super Admin saved & service restarted!${NC}"
+                    else
+                        echo -e "${RED}[ERROR] Super Admin ID cannot be empty!${NC}"
+                    fi
                 else
                     echo -e "${RED}[ERROR] Token empty nahi ho sakta!${NC}"
                 fi
@@ -592,10 +638,11 @@ telegram_bot_menu() {
             4)
                 clear
                 echo -e "${CYAN}--- Allowed Telegram Admin IDs ---${NC}"
+                [[ -f "$SUPER_ADMIN_FILE" ]] && echo -e "Super Admin: $(cat "$SUPER_ADMIN_FILE")"
                 if [[ -f "$ADMIN_IDS_FILE" ]]; then
                     cat "$ADMIN_IDS_FILE"
                 else
-                    echo "No IDs added yet."
+                    echo "No extra IDs added yet."
                 fi
                 press_any_key
                 ;;
@@ -1266,7 +1313,7 @@ while true; do
     echo -e " 5) Check Status & Ports"
     echo -e " 6) Set / Edit SSH Banner"
     echo -e " 7) Fix SSH WS Engine"
-    echo -e " 8) Telegram Bot Control Center (Set Token & Access)"
+    echo -e " 8) Telegram Bot Control Center (Set Token & Super Admin)"
     echo -e " 9) ${RED}Uninstall Entire Script & Remove Components${NC}"
     echo -e " 10) Exit Panel"
     echo -e "${CYAN}====================================================${NC}"
