@@ -1,13 +1,11 @@
 #!/bin/bash
+
 # === MD5 HASH IP APPROVAL SYSTEM ===
 AUTHORIZED_HASHES_URL="https://raw.githubusercontent.com/Abdulbasit95950/vps-panel/main/ips.txt"
 SERVER_IP=$(curl -s https://ipinfo.io/ip || curl -s ifconfig.me)
 
 if [[ -n "$SERVER_IP" ]]; then
-    # Server IP ka MD5 hash generate karna
     SERVER_IP_HASH=$(echo -n "$SERVER_IP" | md5sum | awk '{print $1}')
-    
-    # GitHub se ips.txt file fetch karke hash match karna
     CHECK_HASH=$(curl -s "$AUTHORIZED_HASHES_URL" | grep -w "$SERVER_IP_HASH")
     
     if [[ -z "$CHECK_HASH" ]]; then
@@ -19,7 +17,6 @@ else
     echo -e "\033[0;31m[ERROR] Server IP detect nahi ho saki!\033[0m"
     exit 1
 fi
-
 
 # ==============================================================================
 # Script Name   : RareTriccks VPN Panel (Full Telegram Buttons & Admin Control)
@@ -242,7 +239,6 @@ def handle_callback(chat_id, message_id, data):
     elif data == "menu_admins":
         edit_message(chat_id, message_id, "<b>👮 Admin Management Center:</b>", build_admins_keyboard())
 
-    # --- ACTION FLOWS ---
     elif data == "act_add_start":
         set_user_state(chat_id, {"step": "add_username"})
         edit_message(chat_id, message_id, "✍️ <b>Step 1/5:</b> Enter NEW <b>Username</b>:")
@@ -268,7 +264,6 @@ def handle_callback(chat_id, message_id, data):
         set_user_state(chat_id, {"step": "admin_del"})
         edit_message(chat_id, message_id, "➖ Enter <b>Telegram Numeric User ID</b> to Remove:")
 
-    # --- DIRECT COMMAND EXECUTIONS ---
     elif data == "cmd_online":
         edit_message(chat_id, message_id, get_connected_ips_text(), build_main_keyboard())
     elif data == "cmd_status":
@@ -309,7 +304,7 @@ def handle_callback(chat_id, message_id, data):
             return
         edit_message(chat_id, message_id, f"⏳ Issuing SSL Certificate for <b>{dom}</b>... Please wait.")
         subprocess.call(["systemctl", "stop", "nginx"])
-        r = subprocess.call(["certbot", "certonly", "--standalone", "--preferred-challenges", "http", "--agree-tos", "--register-unsafely-without-email", "-d", dom])
+        subprocess.call(["certbot", "certonly", "--standalone", "--preferred-challenges", "http", "--agree-tos", "--register-unsafely-without-email", "-d", dom])
         if os.path.exists(f"/etc/letsencrypt/live/{dom}/fullchain.pem"):
             subprocess.call(["/usr/local/bin/menu", "apply_nginx"])
             edit_message(chat_id, message_id, f"✅ <b>SSL Activated Successfully for {dom}!</b>", build_domain_keyboard())
@@ -343,7 +338,6 @@ def handle_text(chat_id, text):
         send_main_menu(chat_id)
         return
 
-    # CREATE USER MULTI-STEP FLOW
     if step == "add_username":
         set_user_state(chat_id, {"step": "add_password", "u": text})
         send_api("sendMessage", {"chat_id": chat_id, "text": "🔑 <b>Step 2/5:</b> Enter <b>Password</b>:", "parse_mode": "HTML"})
@@ -388,7 +382,6 @@ def handle_text(chat_id, text):
         except Exception as e:
             send_api("sendMessage", {"chat_id": chat_id, "text": f"❌ Failed: {str(e)}", "reply_markup": build_users_keyboard()})
 
-    # DELETE USER
     elif step == "del_username":
         set_user_state(chat_id, {})
         u = text.strip()
@@ -396,7 +389,6 @@ def handle_text(chat_id, text):
         if os.path.exists(f"{USER_DIR}/{u}.conf"): os.remove(f"{USER_DIR}/{u}.conf")
         send_api("sendMessage", {"chat_id": chat_id, "text": f"🗑️ User <b>{u}</b> deleted!", "parse_mode": "HTML", "reply_markup": build_users_keyboard()})
 
-    # RENEW USER
     elif step == "renew_username":
         set_user_state(chat_id, {"step": "renew_days", "u": text})
         send_api("sendMessage", {"chat_id": chat_id, "text": "📅 Enter <b>Days to add</b> (e.g. 30):", "parse_mode": "HTML"})
@@ -413,7 +405,6 @@ def handle_text(chat_id, text):
         except Exception as e:
             send_api("sendMessage", {"chat_id": chat_id, "text": f"❌ Error: {str(e)}", "reply_markup": build_users_keyboard()})
 
-    # MODIFY IP
     elif step == "ip_username":
         set_user_state(chat_id, {"step": "ip_val", "u": text})
         send_api("sendMessage", {"chat_id": chat_id, "text": "📱 Enter <b>NEW IP Limit</b> (e.g. 2):", "parse_mode": "HTML"})
@@ -434,7 +425,6 @@ def handle_text(chat_id, text):
         else:
             send_api("sendMessage", {"chat_id": chat_id, "text": f"❌ User config for {u} not found!", "reply_markup": build_users_keyboard()})
 
-    # MODIFY GB
     elif step == "gb_username":
         set_user_state(chat_id, {"step": "gb_val", "u": text})
         send_api("sendMessage", {"chat_id": chat_id, "text": "📊 Enter <b>NEW GB Quota</b> (e.g. 100):", "parse_mode": "HTML"})
@@ -455,7 +445,6 @@ def handle_text(chat_id, text):
         else:
             send_api("sendMessage", {"chat_id": chat_id, "text": f"❌ User config for {u} not found!", "reply_markup": build_users_keyboard()})
 
-    # DOMAIN SET
     elif step == "domain_set":
         set_user_state(chat_id, {})
         new_dom = text.strip()
@@ -463,7 +452,6 @@ def handle_text(chat_id, text):
         subprocess.call(["/usr/local/bin/menu", "apply_nginx"])
         send_api("sendMessage", {"chat_id": chat_id, "text": f"🌐 Domain successfully set to: <code>{new_dom}</code>", "parse_mode": "HTML", "reply_markup": build_domain_keyboard()})
 
-    # ADMIN MANAGEMENT
     elif step == "admin_add":
         set_user_state(chat_id, {})
         new_aid = text.strip()
@@ -490,7 +478,6 @@ def main():
                 for update in res.get("result", []):
                     offset = update["update_id"] + 1
 
-                    # Handle Callback Buttons
                     if "callback_query" in update:
                         cb = update["callback_query"]
                         chat_id = str(cb["message"]["chat"]["id"])
@@ -503,7 +490,6 @@ def main():
                         else:
                             send_api("sendMessage", {"chat_id": chat_id, "text": f"⛔ <b>Access Denied!</b>\nYour ID: <code>{chat_id}</code> is not authorized.", "parse_mode": "HTML"})
 
-                    # Handle Incoming Text Inputs
                     elif "message" in update and "text" in update["message"]:
                         msg = update["message"]
                         chat_id = str(msg["chat"]["id"])
@@ -543,9 +529,6 @@ SVC_EOF
     systemctl restart tgbot
 }
 
-# ==============================================================================
-# TELEGRAM BOT MANAGEMENT MENU
-# ==============================================================================
 telegram_bot_menu() {
     while true; do
         clear
@@ -847,18 +830,16 @@ install_all_components() {
     echo -e "\n${BLUE}[3/7] Installing Required Tools & Certbot...${NC}"
     apt install -y curl wget unzip tar net-tools socat jq openssl nginx dropbear certbot python3 python3-pip python3-requests lsof iptables cron
 
-    echo -e "\n${BLUE}[4/7] Auto Issuing SSL Certificate for ${target_domain}...${NC}"
+    echo -e "\n${BLUE}[4/7] Issuing SSL Certificate for ${target_domain}...${NC}"
     systemctl stop nginx 2>/dev/null
     certbot certonly --standalone --preferred-challenges http --agree-tos --register-unsafely-without-email -d "$target_domain"
 
     if [[ -f "/etc/letsencrypt/live/$target_domain/fullchain.pem" ]]; then
         echo -e "${GREEN}[SUCCESS] SSL Certificate successfully issued!${NC}"
-        
-        # Setup Auto SSL Renewal via Cron
         (crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet --pre-hook 'systemctl stop nginx' --post-hook 'systemctl restart nginx'") | crontab -
         echo -e "${GREEN}[SUCCESS] Auto SSL Renewal Cronjob Configured!${NC}"
     else
-        echo -e "${RED}[WARNING] SSL Issue fail hua! Make sure A-Record VPS IP par pointed hai. Aap ise bad me bhi retry kar sakte hain.${NC}"
+        echo -e "${YELLOW}[WARNING] SSL Issue fail hua! Aap installation ke baad Option 3 se ise dubara try kar sakte hain.${NC}"
     fi
 
     echo -e "\n${BLUE}[5/7] Configuring Dropbear SSH & Banner...${NC}"
@@ -950,7 +931,7 @@ SVC_EOF
     install_python_tracker
     install_telegram_bot
 
-    echo -e "\n${GREEN}[SUCCESS] All Components & Services Installed with Auto SSL!${NC}"
+    echo -e "\n${GREEN}[SUCCESS] All Components & Services Installed Successfully!${NC}"
     press_any_key
 }
 
@@ -1210,9 +1191,6 @@ fix_websocket() {
     press_any_key
 }
 
-# ==============================================================================
-# FULL SCRIPT UNINSTALLATION FUNCTION
-# ==============================================================================
 uninstall_script() {
     clear
     echo -e "${RED}====================================================${NC}"
