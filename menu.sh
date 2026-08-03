@@ -110,10 +110,10 @@ while True:
             for fname in os.listdir(USER_DIR):
                 if not fname.endswith(".conf"):
                     continue
-                
+
                 uname = fname[:-5]
                 conf_path = os.path.join(USER_DIR, fname)
-                
+
                 ip_limit = 0
                 gb_limit = "Unlimited"
                 used_mb = 0.0
@@ -192,7 +192,7 @@ SVC_EOF
 
 apply_nginx_config() {
     local MY_DOMAIN=$(get_domain)
-    
+
     if [[ "$MY_DOMAIN" == "No Domain Set" || -z "$MY_DOMAIN" ]]; then
         return
     fi
@@ -301,7 +301,7 @@ install_all_components() {
     apt install -y curl wget unzip tar net-tools socat jq openssl nginx dropbear certbot python3 python3-pip lsof iptables
 
     echo -e "${BLUE}[3/6] Configuring Dropbear SSH & Banner...${NC}"
-    
+
     cat << 'BANNER_EOF' > $BANNER_FILE
 <font color="green">==========================================</font><br>
 <font color="yellow"><b>WELCOME TO RARETRICCKS VIP VPN</b></font><br>
@@ -312,7 +312,7 @@ BANNER_EOF
     sed -i 's/NO_START=1/NO_START=0/g' /etc/default/dropbear
     sed -i 's/DROPBEAR_PORT=22/DROPBEAR_PORT=109/g' /etc/default/dropbear
     sed -i 's/DROPBEAR_EXTRA_ARGS=/DROPBEAR_EXTRA_ARGS="-p 447 -b \/etc\/issue.net"/g' /etc/default/dropbear
-    
+
     sed -i 's/#Banner none/Banner \/etc\/issue.net/g' /etc/ssh/sshd_config
     systemctl restart ssh
     systemctl restart dropbear
@@ -440,10 +440,10 @@ check_connected_ips() {
     echo -e "${CYAN}====================================================================${NC}"
     echo -e "${YELLOW}${BOLD}                     CONNECTED IPS & ACTIVE USERS                   ${NC}"
     echo -e "${CYAN}====================================================================${NC}"
-    
+
     echo -e "${GREEN}Active Online SSH / WebSocket Sessions:${NC}"
     echo -e "${CYAN}--------------------------------------------------------------------${NC}"
-    
+
     local total_count=0
     local raw_logs=""
     if command -v journalctl &>/dev/null; then
@@ -459,7 +459,7 @@ check_connected_ips() {
 
     for pid in $(ps aux | grep dropbear | grep -v grep | awk '{print $2}'); do
         local user_match=$(echo "$raw_logs" | grep "dropbear\[$pid\]" | grep -i "Password auth succeeded" | tail -n 1)
-        
+
         if [[ -n "$user_match" ]]; then
             local username=$(echo "$user_match" | grep -oP "(?<=for ')\w+(?=')" || echo "$user_match" | awk '{for(i=1;i<=NF;i++) if($i=="for") print $(i+1)}')
             local logged_ip=$(echo "$user_match" | grep -oP "(?<=from )\S+(?=:)")
@@ -473,7 +473,7 @@ check_connected_ips() {
                     final_ip="WS-Proxy Client"
                 fi
             fi
-            
+
             if [[ -n "$username" ]]; then
                 printf " User: %-18s | IP/Source: %-25s [ONLINE]\n" "$username" "$final_ip"
                 total_count=$((total_count + 1))
@@ -502,7 +502,7 @@ check_gb_usage() {
     echo -e "${CYAN}====================================================================${NC}"
     echo -e "${YELLOW}${BOLD}                USER BANDWIDTH / EXPIRY & LOCK STATUS               ${NC}"
     echo -e "${CYAN}====================================================================${NC}"
-    
+
     printf " %-14s | %-7s | %-10s | %-12s | %-10s\n" "USERNAME" "IP LIMIT" "DATA USED" "DATA LIMIT" "STATUS"
     echo -e "${CYAN}--------------------------------------------------------------------${NC}"
 
@@ -514,7 +514,7 @@ check_gb_usage() {
         local limit=$(grep "^GB_LIMIT=" "$conf" | cut -d= -f2)
         local ip_l=$(grep "^IP_LIMIT=" "$conf" | cut -d= -f2)
         local used_mb=$(grep "^USED_MB=" "$conf" | cut -d= -f2)
-        
+
         [[ -z "$limit" ]] && limit="Unlimited"
         [[ -z "$ip_l" ]] && ip_l="1"
         [[ -z "$used_mb" ]] && used_mb="0"
@@ -564,10 +564,18 @@ user_menu() {
                 read -rp "Quota / Data Limit in GB (e.g. 0.5 ya 50): " gb_limit
 
                 exp_date=$(date -d "+$days days" +%Y-%m-%d)
-                
-                useradd -M -s /bin/false -e "$exp_date" "$username" &>/dev/null
+
+                useradd -M -s /bin/bash -e "$exp_date" "$username"
+                if [[ $? -ne 0 ]]; then
+                    echo -e "${RED}[ERROR] User create nahi hua! Upar wala error dekhein (username already exists ho sakta hai).${NC}"
+                    press_any_key
+                    continue
+                fi
                 echo "$username:$password" | chpasswd
-                
+                if [[ $? -ne 0 ]]; then
+                    echo -e "${RED}[ERROR] Password set nahi hua!${NC}"
+                fi
+
                 mkdir -p /etc/raretriccks/users
                 echo "IP_LIMIT=$ip_limit" > "/etc/raretriccks/users/${username}.conf"
                 echo "GB_LIMIT=$gb_limit" >> "/etc/raretriccks/users/${username}.conf"
@@ -772,3 +780,4 @@ EOF
 
 chmod +x /usr/local/bin/menu
 cp /usr/local/bin/menu /usr/bin/menu 2>/dev/null
+echo "Menu installed. Run: menu"
