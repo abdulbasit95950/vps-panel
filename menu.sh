@@ -598,7 +598,25 @@ user_menu() {
                 press_any_key
                 ;;
             2)
+                echo -e "${CYAN}--- Existing Users ---${NC}"
+                mkdir -p /etc/raretriccks/users
+                local found=0
+                for conf in /etc/raretriccks/users/*.conf; do
+                    [[ -e "$conf" ]] || continue
+                    local uname=$(basename "$conf" .conf)
+                    local exp=$(chage -l "$uname" 2>/dev/null | grep "Account expires" | cut -d: -f2 | xargs)
+                    [[ -z "$exp" ]] && exp="N/A"
+                    printf "  - %-18s (expires: %s)\n" "$uname" "$exp"
+                    found=1
+                done
+                [[ $found -eq 0 ]] && echo -e "${YELLOW}  Koi user nahi mila.${NC}"
+                echo -e "${CYAN}----------------------${NC}"
                 read -rp "Username to delete: " username
+                if [[ -z "$username" ]]; then
+                    echo -e "${RED}[ERROR] Username khaali nahi chhod sakte!${NC}"
+                    press_any_key
+                    continue
+                fi
                 userdel -f "$username" 2>/dev/null
                 rm -f "/etc/raretriccks/users/${username}.conf"
                 echo -e "${GREEN}User ${username} deleted successfully!${NC}"
@@ -744,6 +762,65 @@ fix_websocket() {
     press_any_key
 }
 
+uninstall_panel() {
+    clear
+    echo -e "${RED}${BOLD}====================================================================${NC}"
+    echo -e "${RED}${BOLD}               UNINSTALL RARETRICCKS VPN PANEL                      ${NC}"
+    echo -e "${RED}${BOLD}====================================================================${NC}"
+    echo -e "${YELLOW}Yeh operation ye sab permanently remove kar dega:${NC}"
+    echo -e "  - WebSocket Proxy & Auto-Kill systemd services"
+    echo -e "  - Nginx VPN reverse-proxy config"
+    echo -e "  - Saare panel-created SSH users aur unki config files"
+    echo -e "  - Domain config aur SSH banner reset"
+    echo -e "  - Menu command khud (/usr/local/bin/menu, /usr/bin/menu)"
+    echo -e "${RED}Yeh action UNDO nahi ho sakta!${NC}\n"
+    read -rp "Confirm karne ke liye 'YES' likhein (case-sensitive): " confirm
+
+    if [[ "$confirm" != "YES" ]]; then
+        echo -e "${YELLOW}Uninstall cancel kar diya gaya.${NC}"
+        press_any_key
+        return
+    fi
+
+    echo -e "\n${BLUE}[1/6] Stopping & disabling services...${NC}"
+    systemctl stop ws-proxy 2>/dev/null
+    systemctl stop autokill 2>/dev/null
+    systemctl disable ws-proxy 2>/dev/null
+    systemctl disable autokill 2>/dev/null
+
+    echo -e "${BLUE}[2/6] Removing systemd service files...${NC}"
+    rm -f /etc/systemd/system/ws-proxy.service
+    rm -f /etc/systemd/system/autokill.service
+    systemctl daemon-reload
+
+    echo -e "${BLUE}[3/6] Removing panel scripts...${NC}"
+    rm -f /usr/local/bin/ws-proxy.py
+    rm -f /usr/local/bin/autokill.py
+
+    echo -e "${BLUE}[4/6] Removing Nginx VPN config...${NC}"
+    rm -f /etc/nginx/conf.d/vpn.conf
+    systemctl restart nginx 2>/dev/null
+
+    echo -e "${BLUE}[5/6] Removing all panel-created SSH users...${NC}"
+    if [[ -d /etc/raretriccks/users ]]; then
+        for conf in /etc/raretriccks/users/*.conf; do
+            [[ -e "$conf" ]] || continue
+            local uname=$(basename "$conf" .conf)
+            userdel -f "$uname" 2>/dev/null
+        done
+    fi
+    rm -rf /etc/raretriccks
+
+    echo -e "${BLUE}[6/6] Removing menu command...${NC}"
+    echo -e "${GREEN}[SUCCESS] Uninstall complete.${NC}"
+    echo -e "${YELLOW}[NOTE] Nginx, Dropbear, Certbot packages khud remove nahi kiye gaye.${NC}"
+    echo -e "${YELLOW}       Poori tarah hataane ke liye manually chalayein: apt remove --purge nginx dropbear certbot${NC}"
+    echo -e "\n${YELLOW}Panel band ho raha hai...${NC}"
+    sleep 2
+    rm -f /usr/local/bin/menu /usr/bin/menu
+    exit 0
+}
+
 while true; do
     clear
     CURRENT_DOM=$(get_domain)
@@ -760,9 +837,10 @@ while true; do
     echo -e " 5) Check Status & Ports"
     echo -e " 6) Set / Edit SSH Banner"
     echo -e " 7) Fix SSH WS & WS+SSL Connection"
-    echo -e " 8) Exit Panel"
+    echo -e " 8) ${RED}Uninstall Panel (Remove All Components)${NC}"
+    echo -e " 9) Exit Panel"
     echo -e "${CYAN}====================================================${NC}"
-    read -rp "Select Option [1-8]: " opt
+    read -rp "Select Option [1-9]: " opt
 
     case $opt in
         1) install_all_components ;;
@@ -772,7 +850,8 @@ while true; do
         5) status_check ;;
         6) set_banner ;;
         7) fix_websocket ;;
-        8) exit 0 ;;
+        8) uninstall_panel ;;
+        9) exit 0 ;;
         *) echo "Invalid option"; sleep 1 ;;
     esac
 done
