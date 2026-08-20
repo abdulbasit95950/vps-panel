@@ -37,12 +37,10 @@ press_any_key() {
 }
 
 configure_dropbear_service() {
-    # Fix Dropbear service config & Systemd unit override
     sed -i 's/NO_START=1/NO_START=0/g' /etc/default/dropbear 2>/dev/null
     sed -i 's/DROPBEAR_PORT=.*/DROPBEAR_PORT=109/g' /etc/default/dropbear 2>/dev/null
     sed -i 's/DROPBEAR_EXTRA_ARGS=.*/DROPBEAR_EXTRA_ARGS="-p 447 -b \/etc\/issue.net"/g' /etc/default/dropbear 2>/dev/null
 
-    # Systemd Dropbear Unit Override File
     mkdir -p /etc/systemd/system/dropbear.service.d
     cat << 'DROP_EOF' > /etc/systemd/system/dropbear.service.d/override.conf
 [Service]
@@ -50,7 +48,6 @@ ExecStart=
 ExecStart=/usr/sbin/dropbear -E -F -p 109 -p 447 -b /etc/issue.net
 DROP_EOF
 
-    # Configure Standard SSHD Banner
     sed -i 's/#Banner none/Banner \/etc\/issue.net/g' /etc/ssh/sshd_config 2>/dev/null
     sed -i 's/Banner none/Banner \/etc\/issue.net/g' /etc/ssh/sshd_config 2>/dev/null
 
@@ -306,36 +303,34 @@ server {{
 
 FLOWS = {
     "add_user": [
-        ("username", "\U0001F464 Username enter karein:"),
-        ("password", "\U0001F511 Password enter karein:"),
-        ("days", "\U0001F4C5 Expiry days enter karein (e.g. 30):"),
-        ("ip_limit", "\U0001F310 Max IP Limit enter karein (e.g. 1):"),
-        ("gb_limit", "\U0001F4BE Data Limit GB enter karein (e.g. 5, ya Unlimited):"),
+        ("username", "👤 Username enter karein:"),
+        ("password", "🔑 Password enter karein:"),
+        ("days", "📅 Expiry days enter karein (e.g. 30):"),
+        ("ip_limit", "🌐 Max IP Limit enter karein (e.g. 1):"),
+        ("gb_limit", "💾 Data Limit GB enter karein (e.g. 5, ya Unlimited):"),
     ],
-    "del_user": [("username", "\U0001F464 Delete karne ke liye Username enter karein:")],
+    "del_user": [("username", "👤 Delete karne ke liye Username enter karein:")],
     "renew_user": [
-        ("username", "\U0001F464 Username enter karein jise renew karna hai:"),
-        ("days", "\U0001F4C5 Kitne additional days add karne hain?"),
+        ("username", "👤 Username enter karein jise renew karna hai:"),
+        ("days", "📅 Kitne additional days add karne hain?"),
     ],
     "ip_limit": [
-        ("username", "\U0001F464 Username enter karein:"),
-        ("value", "\U0001F310 Naya IP Limit enter karein:"),
+        ("username", "👤 Username enter karein:"),
+        ("value", "🌐 Naya IP Limit enter karein:"),
     ],
     "gb_limit": [
-        ("username", "\U0001F464 Username enter karein:"),
-        ("value", "\U0001F4BE Naya GB Limit enter karein:"),
+        ("username", "👤 Username enter karein:"),
+        ("value", "💾 Naya GB Limit enter karein:"),
     ],
-    "domain": [("value", "\U0001F30D Naya domain enter karein (e.g. sub.example.com):")],
-    "banner": [("value", "\U0001F4E2 Naya SSH banner text bhejein:")],
-    "add_admin": [("value", "\U0001F451 Naye Admin ka Telegram User ID enter karein:")],
-    "remove_admin": [("value", "\U0001F5D1 Remove karne ke liye Admin ka Telegram User ID enter karein:")],
+    "domain": [("value", "🌍 Naya domain enter karein (e.g. sub.example.com):")],
+    "banner": [("value", "📢 Naya SSH banner text bhejein:")],
+    "add_admin": [("value", "👑 Naye Admin ka Telegram User ID enter karein:")],
+    "remove_admin": [("value", "🗑 Remove karne ke liye Admin ka Telegram User ID enter karein:")],
 }
-
 
 def load_config():
     with open(CONFIG_FILE) as f:
         return json.load(f)
-
 
 def load_admins():
     if not os.path.exists(ADMINS_FILE):
@@ -343,28 +338,22 @@ def load_admins():
     with open(ADMINS_FILE) as f:
         return json.load(f)
 
-
 def save_admins(admins):
     with open(ADMINS_FILE, "w") as f:
         json.dump(admins, f)
 
-
 def is_admin(uid):
     return uid in load_admins()
-
 
 def is_super(uid):
     cfg = load_config()
     return uid == cfg.get("super_admin")
 
-
 def sh(cmd_list, input_data=None):
     return subprocess.run(cmd_list, capture_output=True, text=True, input=input_data)
 
-
 def run(cmd_str):
     return subprocess.run(cmd_str, shell=True, capture_output=True, text=True)
-
 
 def get_domain():
     if os.path.exists(DOMAIN_FILE):
@@ -372,7 +361,6 @@ def get_domain():
             d = f.read().strip()
             return d if d else "No Domain Set"
     return "No Domain Set"
-
 
 def apply_nginx_config():
     dom = get_domain()
@@ -384,10 +372,8 @@ def apply_nginx_config():
     sh(["rm", "-f", "/etc/nginx/sites-enabled/default"])
     sh(["systemctl", "restart", "nginx"])
 
-
 def valid_username(u):
     return re.match(r"^[a-zA-Z_][a-zA-Z0-9_-]{0,31}$", u) is not None
-
 
 def add_user(username, password, days, ip_limit, gb_limit):
     if not valid_username(username):
@@ -396,6 +382,8 @@ def add_user(username, password, days, ip_limit, gb_limit):
         exp_date = (datetime.now() + timedelta(days=int(days))).strftime("%Y-%m-%d")
     except ValueError:
         return False, "Invalid days value."
+    
+    # Restricted Shell: /bin/false (User commands run nahi kar sakta)
     r = sh(["useradd", "-M", "-s", "/bin/false", "-e", exp_date, username])
     if r.returncode != 0:
         return False, (r.stderr.strip() or "User create failed (already exists?)")
@@ -405,14 +393,12 @@ def add_user(username, password, days, ip_limit, gb_limit):
         f.write(f"IP_LIMIT={ip_limit}\nGB_LIMIT={gb_limit}\nUSED_MB=0.0\n")
     return True, exp_date
 
-
 def delete_user(username):
     sh(["userdel", "-f", username])
     try:
         os.remove(f"{USERS_DIR}/{username}.conf")
     except FileNotFoundError:
         pass
-
 
 def renew_user(username, days):
     r = sh(["id", username])
@@ -425,7 +411,6 @@ def renew_user(username, days):
     sh(["usermod", "-e", new_exp, username])
     sh(["passwd", "-u", username])
     return True
-
 
 def update_conf_field(username, field, value):
     path = f"{USERS_DIR}/{username}.conf"
@@ -446,7 +431,6 @@ def update_conf_field(username, field, value):
         f.writelines(new_lines)
     sh(["passwd", "-u", username])
     return True
-
 
 def list_users_text():
     if not os.path.isdir(USERS_DIR):
@@ -473,39 +457,35 @@ def list_users_text():
             pass
         used_gb = round(used_mb / 1024, 2)
         entries.append(
-            f"\U0001F464 {uname} | IP:{data.get('IP_LIMIT', '?')} | "
+            f"👤 {uname} | IP:{data.get('IP_LIMIT', '?')} | "
             f"Used:{used_gb}GB / {data.get('GB_LIMIT', '?')}GB | {status}"
         )
     return "\n".join(entries) if entries else "Koi user nahi mila."
 
-
 def connected_ips_text():
     r = sh(["ss", "-tnp"])
     lines = [l for l in r.stdout.splitlines() if (":109" in l or ":447" in l) and "ESTAB" in l]
-    return f"\U0001F50C Active SSH/WS sessions (approx): {len(lines)}"
-
+    return f"🔌 Active SSH/WS sessions (approx): {len(lines)}"
 
 def status_text():
     def st(svc):
         r = sh(["systemctl", "is-active", svc])
-        return "\U0001F7E2 ACTIVE" if r.stdout.strip() == "active" else "\U0001F534 INACTIVE"
+        return "🟢 ACTIVE" if r.stdout.strip() == "active" else "🔴 INACTIVE"
 
     dom = get_domain()
     return (
-        f"\U0001F30D Domain: {dom}\n\n"
+        f"🌍 Domain: {dom}\n\n"
         f"Nginx: {st('nginx')}\n"
         f"Dropbear: {st('dropbear')}\n"
         f"WS Proxy: {st('ws-proxy')}\n"
         f"Auto-Kill: {st('autokill')}"
     )
 
-
 def set_domain(new_domain):
     os.makedirs("/etc/raretriccks", exist_ok=True)
     with open(DOMAIN_FILE, "w") as f:
         f.write(new_domain)
     apply_nginx_config()
-
 
 def setup_ssl():
     dom = get_domain()
@@ -522,7 +502,6 @@ def setup_ssl():
         return True, "SSL issued successfully."
     return False, "SSL fail ho gaya. Domain A record VPS IP par pointed hai check karein."
 
-
 def fix_websocket():
     sh(["systemctl", "restart", "dropbear"])
     sh(["systemctl", "daemon-reload"])
@@ -530,7 +509,6 @@ def fix_websocket():
     sh(["systemctl", "restart", "autokill"])
     apply_nginx_config()
     return "WebSocket & Bandwidth engine restarted."
-
 
 WS_PROXY_SRC = """import socket, threading, select, time
 
@@ -755,9 +733,7 @@ DEFAULT_BANNER = (
     '<font color="green">==========================================</font><br>\n'
 )
 
-
 def install_components_sync():
-    # 1) packages
     sh(["apt-get", "update", "-y"])
     sh([
         "apt-get", "install", "-y", "curl", "wget", "unzip", "tar", "net-tools",
@@ -765,7 +741,6 @@ def install_components_sync():
         "python3-pip", "lsof", "iptables",
     ])
 
-    # 2) dropbear + banner + sshd configuration
     if not os.path.exists(BANNER_FILE) or os.path.getsize(BANNER_FILE) == 0:
         with open(BANNER_FILE, "w") as f:
             f.write(DEFAULT_BANNER)
@@ -783,14 +758,12 @@ def install_components_sync():
     sh(["systemctl", "restart", "ssh"])
     sh(["systemctl", "restart", "dropbear"])
 
-    # 3) ws-proxy service
     with open("/usr/local/bin/ws-proxy.py", "w") as f:
         f.write(WS_PROXY_SRC)
     sh(["chmod", "+x", "/usr/local/bin/ws-proxy.py"])
     with open("/etc/systemd/system/ws-proxy.service", "w") as f:
         f.write(WS_PROXY_SERVICE)
 
-    # 4) autokill service
     with open("/usr/local/bin/autokill.py", "w") as f:
         f.write(AUTOKILL_SRC)
     sh(["chmod", "+x", "/usr/local/bin/autokill.py"])
@@ -803,9 +776,7 @@ def install_components_sync():
     sh(["systemctl", "enable", "autokill"])
     sh(["systemctl", "restart", "autokill"])
 
-    # 5) nginx (only if domain already set)
     apply_nginx_config()
-
 
 def uninstall_all():
     sh(["systemctl", "stop", "ws-proxy"])
@@ -838,7 +809,6 @@ def uninstall_all():
         except FileNotFoundError:
             pass
 
-
 def schedule_self_removal():
     subprocess.Popen([
         "bash", "-c",
@@ -848,67 +818,60 @@ def schedule_self_removal():
         "systemctl daemon-reload",
     ])
 
-
 def back_keyboard():
-    return InlineKeyboardMarkup([[InlineKeyboardButton("\u2B05\uFE0F Back to Menu", callback_data="back_main")]])
-
+    return InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back to Menu", callback_data="back_main")]])
 
 def main_menu_keyboard(uid):
     rows = [
-        [InlineKeyboardButton("\u2795 Add User", callback_data="add_user"),
-         InlineKeyboardButton("\U0001F5D1 Delete User", callback_data="del_user")],
-        [InlineKeyboardButton("\U0001F4CB User List", callback_data="list_users"),
-         InlineKeyboardButton("\u23F3 Renew User", callback_data="renew_user")],
-        [InlineKeyboardButton("\U0001F310 IP Limit", callback_data="ip_limit"),
-         InlineKeyboardButton("\U0001F4BE GB Limit", callback_data="gb_limit")],
-        [InlineKeyboardButton("\U0001F50C Connected IPs", callback_data="conn_ips"),
-         InlineKeyboardButton("\u2699\uFE0F Status", callback_data="sys_status")],
-        [InlineKeyboardButton("\U0001F30D Domain", callback_data="domain"),
-         InlineKeyboardButton("\U0001F512 SSL", callback_data="ssl")],
-        [InlineKeyboardButton("\U0001F4E2 Banner", callback_data="banner"),
-         InlineKeyboardButton("\U0001F6E0 Fix WebSocket", callback_data="fix_ws")],
-        [InlineKeyboardButton("\U0001F4E6 Install Components", callback_data="install"),
-         InlineKeyboardButton("\U0001F9E8 Uninstall Panel", callback_data="uninstall")],
+        [InlineKeyboardButton("➕ Add User", callback_data="add_user"),
+         InlineKeyboardButton("🗑 Delete User", callback_data="del_user")],
+        [InlineKeyboardButton("📋 User List", callback_data="list_users"),
+         InlineKeyboardButton("⏳ Renew User", callback_data="renew_user")],
+        [InlineKeyboardButton("🌐 IP Limit", callback_data="ip_limit"),
+         InlineKeyboardButton("💾 GB Limit", callback_data="gb_limit")],
+        [InlineKeyboardButton("🔌 Connected IPs", callback_data="conn_ips"),
+         InlineKeyboardButton("⚙️ Status", callback_data="sys_status")],
+        [InlineKeyboardButton("🌍 Domain", callback_data="domain"),
+         InlineKeyboardButton("🔒 SSL", callback_data="ssl")],
+        [InlineKeyboardButton("📢 Banner", callback_data="banner"),
+         InlineKeyboardButton("🛠 Fix WebSocket", callback_data="fix_ws")],
+        [InlineKeyboardButton("📦 Install Components", callback_data="install"),
+         InlineKeyboardButton("🧨 Uninstall Panel", callback_data="uninstall")],
     ]
     if is_super(uid):
-        rows.append([InlineKeyboardButton("\U0001F451 Admin Management", callback_data="admin_mgmt")])
+        rows.append([InlineKeyboardButton("👑 Admin Management", callback_data="admin_mgmt")])
     return InlineKeyboardMarkup(rows)
-
 
 def admins_text():
     cfg = load_config()
     admins = load_admins()
-    lines = ["\U0001F451 *Admin Management*\n"]
+    lines = ["👑 *Admin Management*\n"]
     for a in admins:
         tag = " (Super Admin)" if a == cfg.get("super_admin") else ""
-        lines.append(f"\u2022 `{a}`{tag}")
+        lines.append(f"• `{a}`{tag}")
     return "\n".join(lines)
-
 
 def admin_menu_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("\u2795 Add Admin", callback_data="add_admin"),
-         InlineKeyboardButton("\u2796 Remove Admin", callback_data="remove_admin")],
-        [InlineKeyboardButton("\u2B05\uFE0F Back", callback_data="back_main")],
+        [InlineKeyboardButton("➕ Add Admin", callback_data="add_admin"),
+         InlineKeyboardButton("➖ Remove Admin", callback_data="remove_admin")],
+        [InlineKeyboardButton("⬅️ Back", callback_data="back_main")],
     ])
-
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     if not is_admin(uid):
-        await update.message.reply_text("\u26D4 Access Denied. Aap authorized admin nahi hain.")
+        await update.message.reply_text("⛔ Access Denied. Aap authorized admin nahi hain.")
         return
     context.user_data['flow'] = None
     await update.message.reply_text(
-        f"\U0001F44B Welcome to {PANEL_NAME}\n\nApna option chunein:",
+        f"👋 Welcome to {PANEL_NAME}\n\nApna option chunein:",
         reply_markup=main_menu_keyboard(uid),
     )
-
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['flow'] = None
     await update.message.reply_text("Cancelled.")
-
 
 async def execute_flow(flow, data, update: Update):
     if flow == "add_user":
@@ -917,7 +880,7 @@ async def execute_flow(flow, data, update: Update):
             dom = get_domain()
             payload = f"GET /raretriccks HTTP/1.1[crlf]Host: {dom}[crlf]Upgrade: websocket[crlf]Connection: Upgrade[crlf][crlf]"
             msg = (
-                f"\u2705 *Account Created*\n\n"
+                f"✅ *Account Created*\n\n"
                 f"Domain: `{dom}`\n"
                 f"Username: `{data['username']}`\n"
                 f"Password: `{data['password']}`\n"
@@ -928,48 +891,47 @@ async def execute_flow(flow, data, update: Update):
                 f"Payload:\n`{payload}`"
             )
         else:
-            msg = f"\u274C User create fail: {info}"
+            msg = f"❌ User create fail: {info}"
         await update.message.reply_text(msg, parse_mode="Markdown", reply_markup=back_keyboard())
     elif flow == "renew_user":
         ok = renew_user(data["username"], data["days"])
         await update.message.reply_text(
-            "\u2705 Renewed." if ok else "\u274C User not found.", reply_markup=back_keyboard()
+            "✅ Renewed." if ok else "❌ User not found.", reply_markup=back_keyboard()
         )
     elif flow == "ip_limit":
         ok = update_conf_field(data["username"], "IP_LIMIT", data["value"])
         await update.message.reply_text(
-            "\u2705 IP limit updated." if ok else "\u274C User config not found.",
+            "✅ IP limit updated." if ok else "❌ User config not found.",
             reply_markup=back_keyboard(),
         )
     elif flow == "gb_limit":
         ok = update_conf_field(data["username"], "GB_LIMIT", data["value"])
         await update.message.reply_text(
-            "\u2705 GB limit updated." if ok else "\u274C User config not found.",
+            "✅ GB limit updated." if ok else "❌ User config not found.",
             reply_markup=back_keyboard(),
         )
     elif flow == "domain":
         set_domain(data["value"])
-        await update.message.reply_text(f"\u2705 Domain set to {data['value']}", reply_markup=back_keyboard())
+        await update.message.reply_text(f"✅ Domain set to {data['value']}", reply_markup=back_keyboard())
     elif flow == "banner":
         with open(BANNER_FILE, "w") as f:
             f.write(data["value"])
         sh(["systemctl", "restart", "dropbear"])
         sh(["systemctl", "restart", "ssh"])
-        await update.message.reply_text("\u2705 Banner updated.", reply_markup=back_keyboard())
+        await update.message.reply_text("✅ Banner updated.", reply_markup=back_keyboard())
     elif flow == "add_admin":
         try:
             new_id = int(data["value"])
         except ValueError:
-            await update.message.reply_text("\u274C Invalid ID.")
+            await update.message.reply_text("❌ Invalid ID.")
             return
         admins = load_admins()
         if new_id in admins:
-            await update.message.reply_text("\u26A0\uFE0F Already an admin.")
+            await update.message.reply_text("⚠️ Already an admin.")
         else:
             admins.append(new_id)
             save_admins(admins)
-            await update.message.reply_text(f"\u2705 Admin {new_id} added.", reply_markup=admin_menu_keyboard())
-
+            await update.message.reply_text(f"✅ Admin {new_id} added.", reply_markup=admin_menu_keyboard())
 
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
@@ -993,31 +955,30 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if flow == "del_user":
         username = data["username"]
         kb = InlineKeyboardMarkup([[
-            InlineKeyboardButton("\u2705 Confirm Delete", callback_data=f"do_del:{username}"),
-            InlineKeyboardButton("\u274C Cancel", callback_data="back_main"),
+            InlineKeyboardButton("✅ Confirm Delete", callback_data=f"do_del:{username}"),
+            InlineKeyboardButton("❌ Cancel", callback_data="back_main"),
         ]])
-        await update.message.reply_text(f"\u26A0\uFE0F '{username}' delete karna confirm karein:", reply_markup=kb)
+        await update.message.reply_text(f"⚠️ '{username}' delete karna confirm karein:", reply_markup=kb)
         return
 
     if flow == "remove_admin":
         try:
             target = int(data["value"])
         except ValueError:
-            await update.message.reply_text("\u274C Invalid ID.")
+            await update.message.reply_text("❌ Invalid ID.")
             return
         cfg = load_config()
         if target == cfg.get("super_admin"):
-            await update.message.reply_text("\u274C Super admin remove nahi ho sakta.")
+            await update.message.reply_text("❌ Super admin remove nahi ho sakta.")
             return
         kb = InlineKeyboardMarkup([[
-            InlineKeyboardButton("\u2705 Confirm Remove", callback_data=f"rm_admin:{target}"),
-            InlineKeyboardButton("\u274C Cancel", callback_data="back_main"),
+            InlineKeyboardButton("✅ Confirm Remove", callback_data=f"rm_admin:{target}"),
+            InlineKeyboardButton("❌ Cancel", callback_data="back_main"),
         ]])
-        await update.message.reply_text(f"\u26A0\uFE0F Admin {target} remove karna confirm karein:", reply_markup=kb)
+        await update.message.reply_text(f"⚠️ Admin {target} remove karna confirm karein:", reply_markup=kb)
         return
 
     await execute_flow(flow, data, update)
-
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
@@ -1030,7 +991,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == "back_main":
         context.user_data['flow'] = None
-        await q.edit_message_text("\U0001F4CB Main Menu", reply_markup=main_menu_keyboard(uid))
+        await q.edit_message_text("📋 Main Menu", reply_markup=main_menu_keyboard(uid))
     elif data in FLOWS:
         context.user_data['flow'] = data
         context.user_data['step'] = 0
@@ -1044,36 +1005,36 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "sys_status":
         await q.edit_message_text(status_text(), reply_markup=back_keyboard())
     elif data == "ssl":
-        await q.edit_message_text("\U0001F512 SSL issue ho raha hai, wait karein...")
+        await q.edit_message_text("🔒 SSL issue ho raha hai, wait karein...")
         ok, msg = await asyncio.to_thread(setup_ssl)
-        await q.message.reply_text(("\u2705 " if ok else "\u274C ") + msg, reply_markup=back_keyboard())
+        await q.message.reply_text(("✅ " if ok else "❌ ") + msg, reply_markup=back_keyboard())
     elif data == "fix_ws":
         msg = fix_websocket()
-        await q.edit_message_text(f"\u2705 {msg}", reply_markup=back_keyboard())
+        await q.edit_message_text(f"✅ {msg}", reply_markup=back_keyboard())
     elif data == "install":
-        await q.edit_message_text("\U0001F4E6 Poora system install ho raha hai (packages + Dropbear + WebSocket + Auto-Kill), 2-5 min lagega...")
+        await q.edit_message_text("📦 Poora system install ho raha hai (packages + Dropbear + WebSocket + Auto-Kill), 2-5 min lagega...")
         await asyncio.to_thread(install_components_sync)
         await q.message.reply_text(
-            "\u2705 Installation complete! Packages, Dropbear, Banner, WebSocket Proxy aur "
+            "✅ Installation complete! Packages, Dropbear, Banner, WebSocket Proxy aur "
             "Auto-Kill/Bandwidth service sab deploy ho gaye hain.\n"
-            "\u2139\uFE0F Agar aapne pehle domain set nahi kiya to Nginx SSL block abhi apply nahi hoga "
-            "\u2014 pehle Domain option se domain set karein, phir SSL issue karein.",
+            "ℹ️ Agar aapne pehle domain set nahi kiya to Nginx SSL block abhi apply nahi hoga "
+            "— pehle Domain option se domain set karein, phir SSL issue karein.",
             reply_markup=back_keyboard(),
         )
     elif data == "uninstall":
         kb = InlineKeyboardMarkup([[
-            InlineKeyboardButton("\u2705 Haan, Uninstall karein", callback_data="do_uninstall"),
-            InlineKeyboardButton("\u274C Cancel", callback_data="back_main"),
+            InlineKeyboardButton("✅ Haan, Uninstall karein", callback_data="do_uninstall"),
+            InlineKeyboardButton("❌ Cancel", callback_data="back_main"),
         ]])
         await q.edit_message_text(
-            "\u26A0\uFE0F Yeh sab kuch permanently remove kar dega (users, services, config, is bot samet). "
+            "⚠️ Yeh sab kuch permanently remove kar dega (users, services, config, is bot samet). "
             "Confirm karein:",
             reply_markup=kb,
         )
     elif data == "do_uninstall":
-        await q.edit_message_text("\U0001F9E8 Uninstalling...")
+        await q.edit_message_text("🧨 Uninstalling...")
         await asyncio.to_thread(uninstall_all)
-        await q.message.reply_text("\u2705 Uninstall complete. Bot khud bhi band ho raha hai.")
+        await q.message.reply_text("✅ Uninstall complete. Bot khud bhi band ho raha hai.")
         schedule_self_removal()
     elif data == "admin_mgmt":
         if not is_super(uid):
@@ -1083,7 +1044,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("do_del:"):
         username = data.split(":", 1)[1]
         delete_user(username)
-        await q.edit_message_text(f"\u2705 User {username} deleted.", reply_markup=back_keyboard())
+        await q.edit_message_text(f"✅ User {username} deleted.", reply_markup=back_keyboard())
     elif data.startswith("rm_admin:"):
         target = int(data.split(":", 1)[1])
         cfg = load_config()
@@ -1096,7 +1057,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             save_admins(admins)
         await q.edit_message_text(admins_text(), parse_mode="Markdown", reply_markup=admin_menu_keyboard())
 
-
 def main():
     cfg = load_config()
     app = Application.builder().token(cfg["token"]).build()
@@ -1105,7 +1065,6 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
     app.run_polling()
-
 
 if __name__ == "__main__":
     main()
@@ -1495,6 +1454,7 @@ user_menu() {
 
                 exp_date=$(date -d "+$days days" +%Y-%m-%d)
 
+                # Restricted Shell Set (/bin/false) - User terminal access / command run nahi kar payega
                 useradd -M -s /bin/false -e "$exp_date" "$username"
                 if [[ $? -ne 0 ]]; then
                     echo -e "${RED}[ERROR] User create nahi hua! Upar wala error dekhein (username already exists ho sakta hai).${NC}"
