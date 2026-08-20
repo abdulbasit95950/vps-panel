@@ -36,6 +36,45 @@ press_any_key() {
     read -r
 }
 
+fix_dropbear_core() {
+    mkdir -p /etc/dropbear
+    chmod 700 /etc/dropbear
+
+    if [[ ! -f /etc/dropbear/dropbear_rsa_host_key ]]; then
+        dropbearkey -t rsa -f /etc/dropbear/dropbear_rsa_host_key &>/dev/null
+    fi
+    if [[ ! -f /etc/dropbear/dropbear_dss_host_key ]]; then
+        dropbearkey -t dss -f /etc/dropbear/dropbear_dss_host_key &>/dev/null
+    fi
+    if [[ ! -f /etc/dropbear/dropbear_ecdsa_host_key ]]; then
+        dropbearkey -t ecdsa -f /etc/dropbear/dropbear_ecdsa_host_key &>/dev/null
+    fi
+    if [[ ! -f /etc/dropbear/dropbear_ed25519_host_key ]]; then
+        dropbearkey -t ed25519 -f /etc/dropbear/dropbear_ed25519_host_key &>/dev/null
+    fi
+
+    chmod 600 /etc/dropbear/*_host_key 2>/dev/null
+
+    cat << 'DB_CONF' > /etc/default/dropbear
+NO_START=0
+DROPBEAR_PORT=109
+DROPBEAR_EXTRA_ARGS="-p 447 -b /etc/issue.net"
+DROPBEAR_BANNER="/etc/issue.net"
+DROPBEAR_RECEIVE_WINDOW=65536
+DB_CONF
+
+    mkdir -p /etc/systemd/system/dropbear.service.d
+    cat << 'DROP_OVERRIDE' > /etc/systemd/system/dropbear.service.d/override.conf
+[Service]
+ExecStart=
+ExecStart=/usr/sbin/dropbear -F -p 109 -p 447 -b /etc/issue.net -r /etc/dropbear/dropbear_rsa_host_key -r /etc/dropbear/dropbear_ecdsa_host_key -r /etc/dropbear/dropbear_ed25519_host_key
+DROP_OVERRIDE
+
+    systemctl daemon-reload
+    systemctl enable dropbear
+    systemctl restart dropbear
+}
+
 install_python_tracker() {
     cat << 'PY_EOF' > /usr/local/bin/autokill.py
 import os
@@ -733,7 +772,6 @@ DEFAULT_BANNER = (
 
 
 def install_components_sync():
-    # 1) packages
     sh(["apt-get", "update", "-y"])
     sh([
         "apt-get", "install", "-y", "curl", "wget", "unzip", "tar", "net-tools",
@@ -741,35 +779,22 @@ def install_components_sync():
         "python3-pip", "lsof", "iptables",
     ])
 
-    # 2) dropbear + banner + sshd (FIXED DROPBEAR SETUP)
     if not os.path.exists(BANNER_FILE) or os.path.getsize(BANNER_FILE) == 0:
         with open(BANNER_FILE, "w") as f:
             f.write(DEFAULT_BANNER)
 
-    os.makedirs("/etc/dropbear", exist_ok=True)
-    if not os.path.exists("/etc/dropbear/dropbear_rsa_host_key"):
-        run("dropbearkey -t rsa -f /etc/dropbear/dropbear_rsa_host_key")
-    if not os.path.exists("/etc/dropbear/dropbear_dss_host_key"):
-        run("dropbearkey -t dss -f /etc/dropbear/dropbear_dss_host_key")
-    if not os.path.exists("/etc/dropbear/dropbear_ed25519_host_key"):
-        run("dropbearkey -t ed25519 -f /etc/dropbear/dropbear_ed25519_host_key")
-
-    with open("/etc/default/dropbear", "w") as f:
-        f.write('NO_START=0\nDROPBEAR_PORT=109\nDROPBEAR_EXTRA_ARGS="-p 447 -b /etc/issue.net"\nDROPBEAR_BANNER="/etc/issue.net"\nDROPBEAR_RECEIVE_WINDOW=65536\n')
+    # Core Dropbear Setup Fix
+    run("bash -c '$(declare -f fix_dropbear_core); fix_dropbear_core'")
 
     run("sed -i 's/#Banner none/Banner \\/etc\\/issue.net/g' /etc/ssh/sshd_config")
     sh(["systemctl", "restart", "ssh"])
-    sh(["systemctl", "enable", "dropbear"])
-    sh(["systemctl", "restart", "dropbear"])
 
-    # 3) ws-proxy service
     with open("/usr/local/bin/ws-proxy.py", "w") as f:
         f.write(WS_PROXY_SRC)
     sh(["chmod", "+x", "/usr/local/bin/ws-proxy.py"])
     with open("/etc/systemd/system/ws-proxy.service", "w") as f:
         f.write(WS_PROXY_SERVICE)
 
-    # 4) autokill service
     with open("/usr/local/bin/autokill.py", "w") as f:
         f.write(AUTOKILL_SRC)
     sh(["chmod", "+x", "/usr/local/bin/autokill.py"])
@@ -782,18 +807,19 @@ def install_components_sync():
     sh(["systemctl", "enable", "autokill"])
     sh(["systemctl", "restart", "autokill"])
 
-    # 5) nginx (only if domain already set)
     apply_nginx_config()
 
 
 def uninstall_all():
     sh(["systemctl", "stop", "ws-proxy"])
     sh(["systemctl", "stop", "autokill"])
+    sh(["systemctl", "stop", "dropbear"])
     sh(["systemctl", "disable", "ws-proxy"])
     sh(["systemctl", "disable", "autokill"])
     for f in [
         "/etc/systemd/system/ws-proxy.service",
         "/etc/systemd/system/autokill.service",
+        "/etc/systemd/system/dropbear.service.d/override.conf",
         "/usr/local/bin/ws-proxy.py",
         "/usr/local/bin/autokill.py",
         "/etc/nginx/conf.d/vpn.conf",
@@ -1223,24 +1249,11 @@ install_all_components() {
 <font color="green">==========================================</font><br>
 BANNER_EOF
 
-    # FIX DROPBEAR
-    mkdir -p /etc/dropbear
-    [[ ! -f /etc/dropbear/dropbear_rsa_host_key ]] && dropbearkey -t rsa -f /etc/dropbear/dropbear_rsa_host_key
-    [[ ! -f /etc/dropbear/dropbear_dss_host_key ]] && dropbearkey -t dss -f /etc/dropbear/dropbear_dss_host_key
-    [[ ! -f /etc/dropbear/dropbear_ed25519_host_key ]] && dropbearkey -t ed25519 -f /etc/dropbear/dropbear_ed25519_host_key
-
-    cat << 'DB_CONF' > /etc/default/dropbear
-NO_START=0
-DROPBEAR_PORT=109
-DROPBEAR_EXTRA_ARGS="-p 447 -b /etc/issue.net"
-DROPBEAR_BANNER="/etc/issue.net"
-DROPBEAR_RECEIVE_WINDOW=65536
-DB_CONF
+    # FIX DROPBEAR INTEGRATED
+    fix_dropbear_core
 
     sed -i 's/#Banner none/Banner \/etc\/issue.net/g' /etc/ssh/sshd_config
     systemctl restart ssh
-    systemctl enable dropbear
-    systemctl restart dropbear
 
     echo -e "${BLUE}[4/6] Creating Multi-Payload Python WebSocket Service...${NC}"
     cat << 'WS_EOF' > /usr/local/bin/ws-proxy.py
@@ -1681,8 +1694,7 @@ fix_websocket() {
     echo -e "${CYAN}====================================================${NC}"
 
     fuser -k 109/tcp 2>/dev/null
-    systemctl restart dropbear
-    systemctl daemon-reload
+    fix_dropbear_core
     systemctl restart ws-proxy
     install_python_tracker
     apply_nginx_config
@@ -1799,6 +1811,7 @@ uninstall_panel() {
     systemctl stop ws-proxy 2>/dev/null
     systemctl stop autokill 2>/dev/null
     systemctl stop tgbot 2>/dev/null
+    systemctl stop dropbear 2>/dev/null
     systemctl disable ws-proxy 2>/dev/null
     systemctl disable autokill 2>/dev/null
     systemctl disable tgbot 2>/dev/null
@@ -1807,6 +1820,7 @@ uninstall_panel() {
     rm -f /etc/systemd/system/ws-proxy.service
     rm -f /etc/systemd/system/autokill.service
     rm -f /etc/systemd/system/tgbot.service
+    rm -f /etc/systemd/system/dropbear.service.d/override.conf
     systemctl daemon-reload
 
     echo -e "${BLUE}[3/6] Removing panel scripts...${NC}"
