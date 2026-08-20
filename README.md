@@ -4,7 +4,7 @@ A powerful VPN management panel with Dropbear SSH, Nginx SSL WebSocket Proxy, Au
 
 ---
 
-### 🚨 Fast 1-Line Installation
+### 🚨 Installation Link
 
 Run this command as root:
 
