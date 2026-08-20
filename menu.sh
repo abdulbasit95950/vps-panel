@@ -1,9 +1,10 @@
-cat << 'EOF' > /usr/local/bin/menu
+cat << 'EOF' > menu.sh
 #!/bin/bash
 
 # ==============================================================================
 # Script Name   : RareTriccks VPN Panel (Dynamic Domain Supported)
 # Custom Path   : /raretriccks
+# Fixes Applied : Fixed Case Sensitivity (Cat -> cat), Systemd Dropbear Override
 # ==============================================================================
 
 RED='\033[0;31m'
@@ -35,6 +36,30 @@ get_domain() {
 press_any_key() {
     echo -e "\n${YELLOW}Press [ENTER] key to return to main menu...${NC}"
     read -r
+}
+
+configure_dropbear_service() {
+    # Fix Dropbear service config & Systemd unit override
+    sed -i 's/NO_START=1/NO_START=0/g' /etc/default/dropbear 2>/dev/null
+    sed -i 's/DROPBEAR_PORT=.*/DROPBEAR_PORT=109/g' /etc/default/dropbear 2>/dev/null
+    sed -i 's/DROPBEAR_EXTRA_ARGS=.*/DROPBEAR_EXTRA_ARGS="-p 447 -b \/etc\/issue.net"/g' /etc/default/dropbear 2>/dev/null
+
+    # Systemd Dropbear Unit Override File
+    mkdir -p /etc/systemd/system/dropbear.service.d
+    cat << 'DROP_EOF' > /etc/systemd/system/dropbear.service.d/override.conf
+[Service]
+ExecStart=
+ExecStart=/usr/sbin/dropbear -E -F -p 109 -p 447 -b /etc/issue.net
+DROP_EOF
+
+    # Configure Standard SSHD Banner
+    sed -i 's/#Banner none/Banner \/etc\/issue.net/g' /etc/ssh/sshd_config 2>/dev/null
+    sed -i 's/Banner none/Banner \/etc\/issue.net/g' /etc/ssh/sshd_config 2>/dev/null
+
+    systemctl daemon-reload
+    systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null
+    systemctl enable dropbear
+    systemctl restart dropbear
 }
 
 install_python_tracker() {
@@ -742,14 +767,21 @@ def install_components_sync():
         "python3-pip", "lsof", "iptables",
     ])
 
-    # 2) dropbear + banner + sshd
+    # 2) dropbear + banner + sshd configuration
     if not os.path.exists(BANNER_FILE) or os.path.getsize(BANNER_FILE) == 0:
         with open(BANNER_FILE, "w") as f:
             f.write(DEFAULT_BANNER)
+
     run("sed -i 's/NO_START=1/NO_START=0/g' /etc/default/dropbear")
-    run("sed -i 's/DROPBEAR_PORT=22/DROPBEAR_PORT=109/g' /etc/default/dropbear")
-    run('sed -i \'s/DROPBEAR_EXTRA_ARGS=/DROPBEAR_EXTRA_ARGS="-p 447 -b \\/etc\\/issue.net"/g\' /etc/default/dropbear')
+    run("sed -i 's/DROPBEAR_PORT=.*/DROPBEAR_PORT=109/g' /etc/default/dropbear")
+    run('sed -i \'s/DROPBEAR_EXTRA_ARGS=.*/DROPBEAR_EXTRA_ARGS="-p 447 -b \\/etc\\/issue.net"/g\' /etc/default/dropbear')
     run("sed -i 's/#Banner none/Banner \\/etc\\/issue.net/g' /etc/ssh/sshd_config")
+
+    os.makedirs("/etc/systemd/system/dropbear.service.d", exist_ok=True)
+    with open("/etc/systemd/system/dropbear.service.d/override.conf", "w") as f:
+        f.write("[Service]\nExecStart=\nExecStart=/usr/sbin/dropbear -E -F -p 109 -p 447 -b /etc/issue.net\n")
+
+    sh(["systemctl", "daemon-reload"])
     sh(["systemctl", "restart", "ssh"])
     sh(["systemctl", "restart", "dropbear"])
 
@@ -785,6 +817,7 @@ def uninstall_all():
     for f in [
         "/etc/systemd/system/ws-proxy.service",
         "/etc/systemd/system/autokill.service",
+        "/etc/systemd/system/dropbear.service.d/override.conf",
         "/usr/local/bin/ws-proxy.py",
         "/usr/local/bin/autokill.py",
         "/etc/nginx/conf.d/vpn.conf",
@@ -1214,13 +1247,7 @@ install_all_components() {
 <font color="green">==========================================</font><br>
 BANNER_EOF
 
-    sed -i 's/NO_START=1/NO_START=0/g' /etc/default/dropbear
-    sed -i 's/DROPBEAR_PORT=22/DROPBEAR_PORT=109/g' /etc/default/dropbear
-    sed -i 's/DROPBEAR_EXTRA_ARGS=/DROPBEAR_EXTRA_ARGS="-p 447 -b \/etc\/issue.net"/g' /etc/default/dropbear
-
-    sed -i 's/#Banner none/Banner \/etc\/issue.net/g' /etc/ssh/sshd_config
-    systemctl restart ssh
-    systemctl restart dropbear
+    configure_dropbear_service
 
     echo -e "${BLUE}[4/6] Creating Multi-Payload Python WebSocket Service...${NC}"
     cat << 'WS_EOF' > /usr/local/bin/ws-proxy.py
@@ -1660,8 +1687,7 @@ fix_websocket() {
     echo -e "${YELLOW}       FIXING SSH WS & WS+SSL ENGINE               ${NC}"
     echo -e "${CYAN}====================================================${NC}"
 
-    systemctl restart dropbear
-    systemctl daemon-reload
+    configure_dropbear_service
     systemctl restart ws-proxy
     install_python_tracker
     apply_nginx_config
@@ -1786,6 +1812,7 @@ uninstall_panel() {
     rm -f /etc/systemd/system/ws-proxy.service
     rm -f /etc/systemd/system/autokill.service
     rm -f /etc/systemd/system/tgbot.service
+    rm -rf /etc/systemd/system/dropbear.service.d
     systemctl daemon-reload
 
     echo -e "${BLUE}[3/6] Removing panel scripts...${NC}"
@@ -1814,7 +1841,7 @@ uninstall_panel() {
     echo -e "${YELLOW}       Poori tarah hataane ke liye manually chalayein: apt remove --purge nginx dropbear certbot${NC}"
     echo -e "\n${YELLOW}Panel band ho raha hai...${NC}"
     sleep 2
-    rm -f /usr/local/bin/menu /usr/bin/menu
+    rm -f /usr/local/bin/menu /usr/bin/menu menu.sh
     exit 0
 }
 
@@ -1856,6 +1883,7 @@ while true; do
 done
 EOF
 
-chmod +x /usr/local/bin/menu
-cp /usr/local/bin/menu /usr/bin/menu 2>/dev/null
-echo "Menu installed. Run: menu"
+chmod +x menu.sh
+cp menu.sh /usr/local/bin/menu
+cp menu.sh /usr/bin/menu 2>/dev/null
+echo "Updated menu.sh created and menu installed successfully. Run: bash menu.sh OR menu"
