@@ -30,7 +30,7 @@ apt update && apt install -y curl && curl -o /usr/local/bin/menu https://raw.git
 * **WebSocket Engine:** Built-in Python proxy service.
 * **User Manager:** Account lifecycle & expiration tracking.
 * **Auto-Kill System:** Bandwidth & IP overuse protection.
-* **Telegram Bot Control:** Full GUI-like menu interface with interactive buttons (`tgbot.py`).
+* **Telegram Bot Control:** Full GUI-like menu interface with interactive buttons.
 
 ---
 
