@@ -1,10 +1,8 @@
-cat << 'EOF' > menu.sh
 #!/bin/bash
 
 # ==============================================================================
 # Script Name   : RareTriccks VPN Panel (Dynamic Domain Supported)
 # Custom Path   : /raretriccks
-# Fixes Applied : Fixed Case Sensitivity (Cat -> cat), Systemd Dropbear Override
 # ==============================================================================
 
 RED='\033[0;31m'
@@ -1881,9 +1879,3 @@ while true; do
         *) echo "Invalid option"; sleep 1 ;;
     esac
 done
-EOF
-
-chmod +x menu.sh
-cp menu.sh /usr/local/bin/menu
-cp menu.sh /usr/bin/menu 2>/dev/null
-echo "Updated menu.sh created and menu installed successfully. Run: bash menu.sh OR menu"
