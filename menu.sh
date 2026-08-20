@@ -43,9 +43,6 @@ fix_dropbear_core() {
     if [[ ! -f /etc/dropbear/dropbear_rsa_host_key ]]; then
         dropbearkey -t rsa -f /etc/dropbear/dropbear_rsa_host_key &>/dev/null
     fi
-    if [[ ! -f /etc/dropbear/dropbear_dss_host_key ]]; then
-        dropbearkey -t dss -f /etc/dropbear/dropbear_dss_host_key &>/dev/null
-    fi
     if [[ ! -f /etc/dropbear/dropbear_ecdsa_host_key ]]; then
         dropbearkey -t ecdsa -f /etc/dropbear/dropbear_ecdsa_host_key &>/dev/null
     fi
@@ -55,20 +52,16 @@ fix_dropbear_core() {
 
     chmod 600 /etc/dropbear/*_host_key 2>/dev/null
 
+    # Remove broken override directory to prevent crashes
+    rm -rf /etc/systemd/system/dropbear.service.d
+
     cat << 'DB_CONF' > /etc/default/dropbear
 NO_START=0
-DROPBEAR_PORT=109
-DROPBEAR_EXTRA_ARGS="-p 447 -b /etc/issue.net"
+DROPBEAR_PORT=22
+DROPBEAR_EXTRA_ARGS="-p 109 -p 447 -b /etc/issue.net"
 DROPBEAR_BANNER="/etc/issue.net"
 DROPBEAR_RECEIVE_WINDOW=65536
 DB_CONF
-
-    mkdir -p /etc/systemd/system/dropbear.service.d
-    cat << 'DROP_OVERRIDE' > /etc/systemd/system/dropbear.service.d/override.conf
-[Service]
-ExecStart=
-ExecStart=/usr/sbin/dropbear -F -p 109 -p 447 -b /etc/issue.net -r /etc/dropbear/dropbear_rsa_host_key -r /etc/dropbear/dropbear_ecdsa_host_key -r /etc/dropbear/dropbear_ed25519_host_key
-DROP_OVERRIDE
 
     systemctl daemon-reload
     systemctl enable dropbear
@@ -346,11 +339,9 @@ FLOWS = {
     "remove_admin": [("value", "\U0001F5D1 Remove karne ke liye Admin ka Telegram User ID enter karein:")],
 }
 
-
 def load_config():
     with open(CONFIG_FILE) as f:
         return json.load(f)
-
 
 def load_admins():
     if not os.path.exists(ADMINS_FILE):
@@ -358,28 +349,22 @@ def load_admins():
     with open(ADMINS_FILE) as f:
         return json.load(f)
 
-
 def save_admins(admins):
     with open(ADMINS_FILE, "w") as f:
         json.dump(admins, f)
 
-
 def is_admin(uid):
     return uid in load_admins()
-
 
 def is_super(uid):
     cfg = load_config()
     return uid == cfg.get("super_admin")
 
-
 def sh(cmd_list, input_data=None):
     return subprocess.run(cmd_list, capture_output=True, text=True, input=input_data)
 
-
 def run(cmd_str):
     return subprocess.run(cmd_str, shell=True, capture_output=True, text=True)
-
 
 def get_domain():
     if os.path.exists(DOMAIN_FILE):
@@ -387,7 +372,6 @@ def get_domain():
             d = f.read().strip()
             return d if d else "No Domain Set"
     return "No Domain Set"
-
 
 def apply_nginx_config():
     dom = get_domain()
@@ -399,10 +383,8 @@ def apply_nginx_config():
     sh(["rm", "-f", "/etc/nginx/sites-enabled/default"])
     sh(["systemctl", "restart", "nginx"])
 
-
 def valid_username(u):
     return re.match(r"^[a-zA-Z_][a-zA-Z0-9_-]{0,31}$", u) is not None
-
 
 def add_user(username, password, days, ip_limit, gb_limit):
     if not valid_username(username):
@@ -420,14 +402,12 @@ def add_user(username, password, days, ip_limit, gb_limit):
         f.write(f"IP_LIMIT={ip_limit}\nGB_LIMIT={gb_limit}\nUSED_MB=0.0\n")
     return True, exp_date
 
-
 def delete_user(username):
     sh(["userdel", "-f", username])
     try:
         os.remove(f"{USERS_DIR}/{username}.conf")
     except FileNotFoundError:
         pass
-
 
 def renew_user(username, days):
     r = sh(["id", username])
@@ -440,7 +420,6 @@ def renew_user(username, days):
     sh(["usermod", "-e", new_exp, username])
     sh(["passwd", "-u", username])
     return True
-
 
 def update_conf_field(username, field, value):
     path = f"{USERS_DIR}/{username}.conf"
@@ -461,7 +440,6 @@ def update_conf_field(username, field, value):
         f.writelines(new_lines)
     sh(["passwd", "-u", username])
     return True
-
 
 def list_users_text():
     if not os.path.isdir(USERS_DIR):
@@ -493,12 +471,10 @@ def list_users_text():
         )
     return "\n".join(entries) if entries else "Koi user nahi mila."
 
-
 def connected_ips_text():
     r = sh(["ss", "-tnp"])
-    lines = [l for l in r.stdout.splitlines() if (":109" in l or ":447" in l) and "ESTAB" in l]
+    lines = [l for l in r.stdout.splitlines() if (":109" in l or ":447" in l or ":22" in l) and "ESTAB" in l]
     return f"\U0001F50C Active SSH/WS sessions (approx): {len(lines)}"
-
 
 def status_text():
     def st(svc):
@@ -514,13 +490,11 @@ def status_text():
         f"Auto-Kill: {st('autokill')}"
     )
 
-
 def set_domain(new_domain):
     os.makedirs("/etc/raretriccks", exist_ok=True)
     with open(DOMAIN_FILE, "w") as f:
         f.write(new_domain)
     apply_nginx_config()
-
 
 def setup_ssl():
     dom = get_domain()
@@ -537,7 +511,6 @@ def setup_ssl():
         return True, "SSL issued successfully."
     return False, "SSL fail ho gaya. Domain A record VPS IP par pointed hai check karein."
 
-
 def fix_websocket():
     sh(["systemctl", "restart", "dropbear"])
     sh(["systemctl", "daemon-reload"])
@@ -545,7 +518,6 @@ def fix_websocket():
     sh(["systemctl", "restart", "autokill"])
     apply_nginx_config()
     return "WebSocket & Bandwidth engine restarted."
-
 
 WS_PROXY_SRC = """import socket, threading, select, time
 
@@ -770,7 +742,6 @@ DEFAULT_BANNER = (
     '<font color="green">==========================================</font><br>\n'
 )
 
-
 def install_components_sync():
     sh(["apt-get", "update", "-y"])
     sh([
@@ -783,7 +754,6 @@ def install_components_sync():
         with open(BANNER_FILE, "w") as f:
             f.write(DEFAULT_BANNER)
 
-    # Core Dropbear Setup Fix
     run("bash -c '$(declare -f fix_dropbear_core); fix_dropbear_core'")
 
     run("sed -i 's/#Banner none/Banner \\/etc\\/issue.net/g' /etc/ssh/sshd_config")
@@ -808,7 +778,6 @@ def install_components_sync():
     sh(["systemctl", "restart", "autokill"])
 
     apply_nginx_config()
-
 
 def uninstall_all():
     sh(["systemctl", "stop", "ws-proxy"])
@@ -842,7 +811,6 @@ def uninstall_all():
         except FileNotFoundError:
             pass
 
-
 def schedule_self_removal():
     subprocess.Popen([
         "bash", "-c",
@@ -852,10 +820,8 @@ def schedule_self_removal():
         "systemctl daemon-reload",
     ])
 
-
 def back_keyboard():
     return InlineKeyboardMarkup([[InlineKeyboardButton("\u2B05\uFE0F Back to Menu", callback_data="back_main")]])
-
 
 def main_menu_keyboard(uid):
     rows = [
@@ -878,7 +844,6 @@ def main_menu_keyboard(uid):
         rows.append([InlineKeyboardButton("\U0001F451 Admin Management", callback_data="admin_mgmt")])
     return InlineKeyboardMarkup(rows)
 
-
 def admins_text():
     cfg = load_config()
     admins = load_admins()
@@ -888,14 +853,12 @@ def admins_text():
         lines.append(f"\u2022 `{a}`{tag}")
     return "\n".join(lines)
 
-
 def admin_menu_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("\u2795 Add Admin", callback_data="add_admin"),
          InlineKeyboardButton("\u2796 Remove Admin", callback_data="remove_admin")],
         [InlineKeyboardButton("\u2B05\uFE0F Back", callback_data="back_main")],
     ])
-
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
@@ -908,11 +871,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=main_menu_keyboard(uid),
     )
 
-
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['flow'] = None
     await update.message.reply_text("Cancelled.")
-
 
 async def execute_flow(flow, data, update: Update):
     if flow == "add_user":
@@ -974,7 +935,6 @@ async def execute_flow(flow, data, update: Update):
             save_admins(admins)
             await update.message.reply_text(f"\u2705 Admin {new_id} added.", reply_markup=admin_menu_keyboard())
 
-
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     if not is_admin(uid):
@@ -1021,7 +981,6 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await execute_flow(flow, data, update)
-
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
@@ -1100,7 +1059,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             save_admins(admins)
         await q.edit_message_text(admins_text(), parse_mode="Markdown", reply_markup=admin_menu_keyboard())
 
-
 def main():
     cfg = load_config()
     app = Application.builder().token(cfg["token"]).build()
@@ -1109,7 +1067,6 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
     app.run_polling()
-
 
 if __name__ == "__main__":
     main()
@@ -1249,7 +1206,6 @@ install_all_components() {
 <font color="green">==========================================</font><br>
 BANNER_EOF
 
-    # FIX DROPBEAR INTEGRATED
     fix_dropbear_core
 
     sed -i 's/#Banner none/Banner \/etc\/issue.net/g' /etc/ssh/sshd_config
@@ -1419,7 +1375,7 @@ check_connected_ips() {
         fi
     done
 
-    local active_sockets=$(ss -tnp 2>/dev/null | grep ":109" | grep -i "ESTAB" | wc -l)
+    local active_sockets=$(ss -tnp 2>/dev/null | grep -E ":(109|447|22)" | grep -i "ESTAB" | wc -l)
     if [[ $total_count -lt $active_sockets ]]; then
         echo -e "${YELLOW} Detected ${active_sockets} Active Tunnel Socket(s) connected to Dropbear Core.${NC}"
         [[ $total_count -eq 0 ]] && total_count=$active_sockets
